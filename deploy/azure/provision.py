@@ -229,6 +229,16 @@ def s6_databricks(mi):
 
 def s7_env():
     step(f"7 Container Apps environment {CAE}")
+    for ns in ("Microsoft.App", "Microsoft.OperationalInsights"):
+        state = az("provider", "show", "-n", ns, "--query", "registrationState")
+        if state != "Registered":
+            az("provider", "register", "-n", ns, out_json=False)
+            for _ in range(60):
+                state = az("provider", "show", "-n", ns, "--query", "registrationState")
+                print(f"   {ns}: {state}", flush=True)
+                if state == "Registered":
+                    break
+                time.sleep(15)
     path = f"Microsoft.App/managedEnvironments/{CAE}"
     if not arm("get", path, "2024-03-01"):
         law = az("monitor", "log-analytics", "workspace", "show", "-g", RG, "-n", LAW, "--query", "customerId")
