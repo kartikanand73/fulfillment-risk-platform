@@ -77,7 +77,7 @@ def arm(method, path, ver, body=None):
         if f:
             os.remove(f)
     if r.returncode:
-        if method == "get" and ("ResourceNotFound" in r.stderr or "NotFound" in r.stderr):
+        if method == "get" and ("notfound" in r.stderr.lower() or "not found" in r.stderr.lower()):
             return None
         raise SystemExit(f"ARM {method} {path} failed: {r.stderr.strip()[-700:]}")
     return json.loads(r.stdout) if r.stdout.strip() else {}
