@@ -4,7 +4,7 @@
   "extensions": {
     "eventHubs": { "maxEventBatchSize": 100, "minEventBatchSize": 1, "maxWaitTime": "00:00:05",
                    "batchCheckpointFrequency": 1, "prefetchCount": 300,
-                   "initialOffsetOptions": { "type": "fromEnd" } }
+                   "initialOffsetOptions": { "type": "fromStart" } }
   },
   "logging": {
     "logLevel": { "default": "Information", "Host.Results": "Information", "Function": "Information" },
