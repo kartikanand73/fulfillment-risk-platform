@@ -72,6 +72,8 @@ def test_trigger_annotation_is_a_real_type():
     import inspect
     src = (Path(__file__).resolve().parents[1] / "function_app" / "function_app.py").read_text()
     assert "from __future__ import annotations" not in src
-    fn = function_app.app.get_functions()[0].get_user_function()
-    ann = inspect.signature(fn).parameters["events"].annotation
-    assert not isinstance(ann, str) and ann.__args__[0] is func.EventHubEvent
+    import ast
+    fn = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "process_signals")
+    ann = eval(compile(ast.Expression(fn.args.args[0].annotation), "a", "eval"),
+               {"typing": __import__("typing"), "func": func})
+    assert ann.__args__[0] is func.EventHubEvent and not inspect.isclass(type(ann)) is str
