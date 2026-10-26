@@ -59,7 +59,9 @@ def handle(events, connect=_connect, now: datetime | None = None):
 
 @app.function_name(name="process_signals")
 @app.event_hub_message_trigger(arg_name="events", event_hub_name="%EVENTHUB_NAME%", connection="EventHubConnection",
-                               consumer_group="%EVENTHUB_CONSUMER_GROUP%", cardinality="many")
+                               consumer_group="%EVENTHUB_CONSUMER_GROUP%", cardinality="many",
+                               data_type="binary")   # raw bytes: the HOST must not JSON-parse bodies - one malformed
+                                                     # event would fail (and after retries, skip) the whole batch
 @app.retry(strategy="exponential_backoff", max_retry_count="5", minimum_interval="00:00:02",
            maximum_interval="00:00:30")
 def process_signals(events: typing.List[func.EventHubEvent]) -> None:   # real type: the worker inspects it

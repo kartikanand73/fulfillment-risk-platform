@@ -52,6 +52,8 @@ def test_function_is_registered_with_identity_connection():
     b = json.loads(fns[0].get_function_json())["bindings"][0]
     assert b["type"] == "eventHubTrigger" and b["connection"] == "EventHubConnection"
     assert b["cardinality"].lower() == "many" and b["consumerGroup"] == "%EVENTHUB_CONSUMER_GROUP%"
+    # bodies must reach Python as raw bytes: if the host JSON-parses them, one bad event fails the whole batch
+    assert b["dataType"].lower() == "binary"
 
 
 def test_deployment_zip_is_readable_on_linux(tmp_path):
