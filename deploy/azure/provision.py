@@ -160,7 +160,7 @@ def s4_postgres():
     arm("put", f"{path}/administrators/{me['id']}", "2024-08-01",
         {"properties": {"principalType": "User", "principalName": admin_name,
                         "tenantId": az("account", "show", "--query", "tenantId")}})
-    wait_arm(f"{path}/administrators/{me['id']}", "2024-08-01")
+    wait_arm(f"{path}/administrators/{me['id']}", "2024-08-01", key=("properties", "objectId"), ok=(me["id"],))
     print(f"   Entra admin: {admin_name}")
     arm("put", f"{path}/databases/{DB}", "2024-08-01", {"properties": {"charset": "UTF8", "collation": "en_US.utf8"}})
     arm("put", f"{path}/firewallRules/AllowAzureServices", "2024-08-01",
