@@ -126,7 +126,9 @@ def read_customers(dsn: str, at_risk_only: bool = False) -> list[dict]:
     q = "SELECT * FROM fr.v_fulfillment_risk_current"
     if at_risk_only:
         q += " WHERE status <> 'FULFILLABLE'"
-    q += " ORDER BY short_value DESC, customer_id"
+    # same order as the engine, independent of the database locale: worst status, biggest shortfall, id (bytewise)
+    q += (" ORDER BY CASE status WHEN 'DATA_ISSUE' THEN 0 WHEN 'UNFULFILLABLE' THEN 1 WHEN 'PARTIAL' THEN 2 ELSE 3 END,"
+          " short_value DESC, customer_id COLLATE \"C\"")
     with psycopg.connect(dsn) as c:
         return c.cursor(row_factory=psycopg.rows.dict_row).execute(q).fetchall()
 
@@ -138,7 +140,7 @@ def read_lines(dsn: str, customer_id: str | None = None, order_id: str | None = 
     if order_id:
         q, args = q + " AND order_id = %s", args + [order_id]
     with psycopg.connect(dsn) as c:
-        return c.cursor(row_factory=psycopg.rows.dict_row).execute(q + " ORDER BY order_id, line_number",
+        return c.cursor(row_factory=psycopg.rows.dict_row).execute(q + ' ORDER BY order_id COLLATE "C", line_number',
                                                                      args).fetchall()
 
 
