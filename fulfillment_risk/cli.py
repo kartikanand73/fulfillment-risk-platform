@@ -76,10 +76,16 @@ def main(argv=None) -> int:
         print("schema fr ready")
     elif a.cmd == "refresh":
         srcs = _sources(a.live)
-        if a.dry_run:
-            out = dry_run(*srcs, settings=RefreshSettings.from_env())
-        else:
-            out = run_refresh(_dsn(), *srcs, settings=RefreshSettings.from_env(), trigger=a.trigger)
+        from .telemetry import flush, refresh_span
+        with refresh_span(trigger=a.trigger, live=a.live, dry_run=a.dry_run) as span:
+            if a.dry_run:
+                out = dry_run(*srcs, settings=RefreshSettings.from_env())
+            else:
+                out = run_refresh(_dsn(), *srcs, settings=RefreshSettings.from_env(), trigger=a.trigger)
+            span(status=out.status, run_id=out.run_id, error=out.error,
+                 **({f"{k}_rows": v["rows"] for k, v in out.sources.items()}),
+                 **({k: v for k, v in (out.result.summary.items() if out.result else [])}))
+        flush()
         report = {"run_id": out.run_id, "status": out.status, "error": out.error, "sources": out.sources,
                   "summary": out.result.summary if out.result else None}
         if a.dry_run and out.result:

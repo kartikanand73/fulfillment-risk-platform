@@ -11,6 +11,7 @@ Guarantees:
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import asdict
 from decimal import Decimal
 from pathlib import Path
@@ -37,9 +38,23 @@ def _json(o):
     raise TypeError(type(o))
 
 
+OSSRDBMS_SCOPE = "https://ossrdbms-aad.database.windows.net/.default"
+
+
+def connect(dsn: str, **kw) -> psycopg.Connection:
+    """psycopg.connect, with an Entra access token as the password when FR_DATABASE_ENTRA=true
+    (Azure Database for PostgreSQL with Microsoft Entra authentication - no stored passwords).
+    The token comes from DefaultAzureCredential: the job's managed identity in Azure, `az login` locally."""
+    if os.environ.get("FR_DATABASE_ENTRA", "").lower() in ("1", "true", "yes"):
+        from azure.identity import DefaultAzureCredential
+        kw["password"] = DefaultAzureCredential().get_token(OSSRDBMS_SCOPE).token
+        kw.setdefault("sslmode", "require")
+    return psycopg.connect(dsn, **kw)
+
+
 def apply_schema(dsn: str) -> None:
     """Create/upgrade the fr schema (needs a role that can create roles/schemas - run by an admin)."""
-    with psycopg.connect(dsn, autocommit=True) as c:
+    with connect(dsn, autocommit=True) as c:
         c.execute(SCHEMA_SQL.read_text())
 
 
@@ -51,7 +66,7 @@ class SnapshotStore:
 
     # ---- run lifecycle ----
     def begin(self, code_version: str, trigger: str = "manual") -> int:
-        self.conn = psycopg.connect(self.dsn, autocommit=True)
+        self.conn = connect(self.dsn, autocommit=True)
         got = self.conn.execute("SELECT pg_try_advisory_lock(%s)", (LOCK_KEY,)).fetchone()[0]
         if not got:
             self.conn.close()
@@ -117,7 +132,7 @@ class SnapshotStore:
 
 # ---- read side (what the agent skill will use, as fr_reader) ----
 def read_status(dsn: str) -> dict | None:
-    with psycopg.connect(dsn) as c:
+    with connect(dsn) as c:
         cur = c.cursor(row_factory=psycopg.rows.dict_row)
         return cur.execute("SELECT * FROM fr.v_snapshot_status").fetchone()
 
@@ -129,7 +144,7 @@ def read_customers(dsn: str, at_risk_only: bool = False) -> list[dict]:
     # same order as the engine, independent of the database locale: worst status, biggest shortfall, id (bytewise)
     q += (" ORDER BY CASE status WHEN 'DATA_ISSUE' THEN 0 WHEN 'UNFULFILLABLE' THEN 1 WHEN 'PARTIAL' THEN 2 ELSE 3 END,"
           " short_value DESC, customer_id COLLATE \"C\"")
-    with psycopg.connect(dsn) as c:
+    with connect(dsn) as c:
         return c.cursor(row_factory=psycopg.rows.dict_row).execute(q).fetchall()
 
 
@@ -139,9 +154,9 @@ def read_lines(dsn: str, customer_id: str | None = None, order_id: str | None = 
         q, args = q + " AND customer_id = %s", args + [customer_id]
     if order_id:
         q, args = q + " AND order_id = %s", args + [order_id]
-    with psycopg.connect(dsn) as c:
+    with connect(dsn) as c:
         return c.cursor(row_factory=psycopg.rows.dict_row).execute(q + ' ORDER BY order_id COLLATE "C", line_number',
                                                                      args).fetchall()
 
 
-__all__ = ["SnapshotStore", "RefreshInProgress", "apply_schema", "read_status", "read_customers", "read_lines", "asdict"]
+__all__ = ["connect", "SnapshotStore", "RefreshInProgress", "apply_schema", "read_status", "read_customers", "read_lines", "asdict"]
