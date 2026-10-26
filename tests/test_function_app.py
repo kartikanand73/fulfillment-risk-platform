@@ -52,3 +52,16 @@ def test_function_is_registered_with_identity_connection():
     b = json.loads(fns[0].get_function_json())["bindings"][0]
     assert b["type"] == "eventHubTrigger" and b["connection"] == "EventHubConnection"
     assert b["cardinality"].lower() == "many" and b["consumerGroup"] == "%EVENTHUB_CONSUMER_GROUP%"
+
+
+def test_deployment_zip_is_readable_on_linux(tmp_path):
+    import subprocess
+    import zipfile
+    out = tmp_path / "f.zip"
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / "deploy/azure/build_function.py"),
+                    str(out)], check=True, capture_output=True)
+    infos = zipfile.ZipFile(out).infolist()
+    names = {i.filename for i in infos}
+    assert {"function_app.py", "host.json", "requirements.txt", "fulfillment_risk/__init__.py",
+            "fulfillment_risk/signals/processor.py"} <= names
+    assert all((i.external_attr >> 16) & 0o444 == 0o444 for i in infos)       # world-readable
