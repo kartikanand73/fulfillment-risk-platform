@@ -13,7 +13,7 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
                                   |
               PostgreSQL fr schema: trusted snapshot + run history
                                   |
-        Foundry agent: fulfillment-risk skill (conversational investigation)   [Phase 7]
+  Web app dashboard screen  +  Foundry agent fulfillment-risk skill   (skill-agent platform, Phase 7)
 ```
 
 ## Status
@@ -26,7 +26,7 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
 | 4 | Tests and failure handling (real PostgreSQL) | ✅ all passing |
 | 5 | Real connectors: Salesforce SOQL, Databricks SQL (not Genie), Snowflake SQL API | ✅ verified live (dry run) |
 | 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | ✅ live: hourly at :07 UTC; first run published 2026-10-26 19:57 UTC |
-| 7 | `fulfillment-risk` skill on the Foundry hosted agent (Entra role `SkillAgent.FulfillmentRisk`) | not started |
+| 7 | Consumers in the skill-agent platform: a **📦 Fulfillment risk** dashboard screen in the web app, plus a `fulfillment-risk` chat skill (agent v10). Both read `fr.v_*` as `fr_reader` behind the Entra role `SkillAgent.FulfillmentRisk` | ✅ deployed; chat skill verified end to end |
 
 This project has no Azure compute or database yet. Phase 5 reuses the existing Key Vault, Databricks warehouse and Snowflake account. Power BI is out of scope.
 
