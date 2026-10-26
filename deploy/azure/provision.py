@@ -169,8 +169,8 @@ def s4_postgres():
     ip = httpx.get("https://api.ipify.org", timeout=20).text.strip()
     arm("put", f"{path}/firewallRules/admin-workstation", "2024-08-01",
         {"properties": {"startIpAddress": ip, "endIpAddress": ip}})
-    for rule in ("AllowAzureServices", "admin-workstation"):
-        wait_arm(f"{path}/firewallRules/{rule}", "2024-08-01")
+    for rule, start in (("AllowAzureServices", "0.0.0.0"), ("admin-workstation", ip)):
+        wait_arm(f"{path}/firewallRules/{rule}", "2024-08-01", key=("properties", "startIpAddress"), ok=(start,))
     print(f"   database {DB}; firewall: Azure services + {ip}")
     return admin_name
 
