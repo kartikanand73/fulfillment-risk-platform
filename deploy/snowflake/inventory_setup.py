@@ -140,5 +140,5 @@ else:
         os.remove(path)
     print("PAT FR_REFRESH stored in Key Vault as snowflake-fr-pat (expires in 90 days)")
 
-print(sql(f"SELECT COUNT(*) AS rows, SUM(ON_HAND - RESERVED) AS available FROM {FQ}", warehouse=WH, quiet=True))
+print(sql(f"SELECT COUNT(*) AS n_rows, SUM(ON_HAND - RESERVED) AS available_units FROM {FQ}", warehouse=WH, quiet=True))
 print("SNOWFLAKE_DONE")
