@@ -1,0 +1,6 @@
+union traces, exceptions, requests
+| where timestamp > ago(20m) and cloud_RoleName == 'func-fr-signals-ka2026'
+| where (itemType == 'trace' and message has 'fr_signals') or itemType in ('exception', 'request')
+| project timestamp, itemType, success, msg = substring(coalesce(message, outerMessage, name), 0, 400),
+          details = substring(tostring(details), 0, 600)
+| order by timestamp desc | take 30
