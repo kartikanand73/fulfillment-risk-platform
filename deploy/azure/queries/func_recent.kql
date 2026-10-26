@@ -1,0 +1,5 @@
+union traces, exceptions, requests
+| where timestamp > ago(15m) and cloud_RoleName == 'func-fr-signals-ka2026'
+| where itemType != 'trace' or severityLevel >= 2 or message has_any ('fr_signals', 'Executing', 'Executed', 'listener', 'EventHub', 'partition', 'Listener')
+| project timestamp, itemType, severityLevel, success, msg = substring(coalesce(message, outerMessage, name), 0, 260)
+| order by timestamp desc | take 25
