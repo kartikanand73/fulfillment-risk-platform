@@ -1,7 +1,9 @@
 """Phase 6: Azure resources for the scheduled refresh. Rerun-safe; run from the repo root with `az login` as an
 Owner of resource group DB. Prints names and ids only - never secrets.
 
-Target (explicit): subscription fe74279e-6ca8-48ff-bf54-90305b257322, resource group DB, region eastus.
+Target (explicit): subscription fe74279e-6ca8-48ff-bf54-90305b257322, resource group DB, region eastus -
+except PostgreSQL, which is in centralus (this subscription is restricted from creating PostgreSQL servers in
+eastus, eastus2 and westus2; decision D-017).
 
   1 identity   user-assigned managed identity id-fr-refresh-ka2026 (the job runs as this)
   2 image      az acr build -> skillagentacrka2026.azurecr.io/fulfillment-risk:<tag>; AcrPull for the identity
@@ -32,6 +34,7 @@ from fulfillment_risk.cli import load_dotenv  # noqa: E402
 
 load_dotenv()
 SUB, RG, LOC = "fe74279e-6ca8-48ff-bf54-90305b257322", "DB", "eastus"
+PG_LOC = "centralus"   # PostgreSQL provisioning is restricted for this subscription in eastus/eastus2/westus2
 UAMI, ACR, KV = "id-fr-refresh-ka2026", "skillagentacrka2026", "kv-skillagent-ka2026"
 PG, DB = "psql-fr-ka2026", "fr"
 CAE, JOB, LAW, APPI = "cae-fr-ka2026", "job-fr-refresh", "log-skillagent-ka2026", "appi-skillagent-ka2026"
@@ -141,12 +144,12 @@ def s3_keyvault(mi):
 
 
 def s4_postgres():
-    step(f"4 PostgreSQL Flexible Server {PG} (Burstable B1ms, 32 GB, PG 16, Entra-only)")
+    step(f"4 PostgreSQL Flexible Server {PG} in {PG_LOC} (Burstable B1ms, 32 GB, PG 16, Entra-only)")
     me = az("ad", "signed-in-user", "show", "--query", "{id:id, upn:userPrincipalName, mail:mail}")
     path = f"Microsoft.DBforPostgreSQL/flexibleServers/{PG}"
     if not arm("get", path, "2024-08-01"):
         arm("put", path, "2024-08-01", {
-            "location": LOC, "sku": {"name": "Standard_B1ms", "tier": "Burstable"},
+            "location": PG_LOC, "sku": {"name": "Standard_B1ms", "tier": "Burstable"},
             "properties": {"version": "16", "storage": {"storageSizeGB": 32, "autoGrow": "Disabled"},
                            "authConfig": {"activeDirectoryAuth": "Enabled", "passwordAuth": "Disabled",
                                           "tenantId": az("account", "show", "--query", "tenantId")},
