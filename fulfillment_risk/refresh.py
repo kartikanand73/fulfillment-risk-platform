@@ -47,6 +47,48 @@ class RefreshOutcome:
     sources: dict = field(default_factory=dict)
 
 
+def fetch_all(customers_src: CustomerSource, orders_src: OpenOrderSource, inventory_src: InventorySource):
+    """Read the three systems of record. Returns (batches, sources-metadata)."""
+    batches, sources = {}, {}
+    for key, src, fn in (("salesforce", customers_src, "fetch_customers"),
+                         ("databricks", orders_src, "fetch_open_order_lines"),
+                         ("snowflake", inventory_src, "fetch_inventory")):
+        b = getattr(src, fn)()
+        batches[key] = b
+        sources[key] = {"adapter": src.name, "as_of": b.as_of, "rows": b.row_count}
+    return batches, sources
+
+
+def evaluate(batches: dict, settings: RefreshSettings, now: datetime | None = None) -> RiskResult:
+    """Gates 2-4 + the calculation. Raises RefreshRejected; pure (no I/O)."""
+    s = settings
+    stale = check_freshness({k: b.as_of for k, b in batches.items()}, now or utcnow(), s.max_age_hours)
+    if stale:
+        raise RefreshRejected(f"stale source data: {', '.join(stale)} (limit {s.max_age_hours}h)")
+    if not batches["salesforce"].rows:
+        raise RefreshRejected("salesforce returned no customers")
+    if not batches["snowflake"].rows:
+        raise RefreshRejected("snowflake returned no inventory")
+    result = compute(batches["salesforce"].rows, batches["databricks"].rows, batches["snowflake"].rows)
+    n = result.summary["open_lines"]
+    ratio = result.summary["data_issue_lines"] / n if n else 0.0
+    if ratio > s.max_data_issue_ratio:
+        raise RefreshRejected(f"{result.summary['data_issue_lines']} of {n} lines have data issues "
+                              f"({ratio:.0%} > {s.max_data_issue_ratio:.0%})")
+    return result
+
+
+def dry_run(customers_src, orders_src, inventory_src, settings: RefreshSettings | None = None,
+            now: datetime | None = None) -> RefreshOutcome:
+    """Everything a refresh does except touching PostgreSQL (used to verify live connectors)."""
+    sources: dict = {}
+    try:
+        batches, sources = fetch_all(customers_src, orders_src, inventory_src)
+        return RefreshOutcome(None, "succeeded", None, evaluate(batches, settings or RefreshSettings(), now), sources)
+    except (SourceError, RefreshRejected, ValueError) as e:
+        return RefreshOutcome(None, "failed", f"{type(e).__name__}: {e}", None, sources)
+
+
 def run_refresh(dsn: str, customers_src: CustomerSource, orders_src: OpenOrderSource, inventory_src: InventorySource,
                 settings: RefreshSettings | None = None, trigger: str = "manual", now: datetime | None = None,
                 _fail_after_rows: bool = False) -> RefreshOutcome:
@@ -58,29 +100,9 @@ def run_refresh(dsn: str, customers_src: CustomerSource, orders_src: OpenOrderSo
         return RefreshOutcome(None, "skipped", str(e))
     sources: dict = {}
     try:
-        batches = {}
-        for key, src, fn in (("salesforce", customers_src, "fetch_customers"),
-                             ("databricks", orders_src, "fetch_open_order_lines"),
-                             ("snowflake", inventory_src, "fetch_inventory")):
-            b = getattr(src, fn)()
-            batches[key] = b
-            sources[key] = {"adapter": src.name, "as_of": b.as_of, "rows": b.row_count}
+        batches, sources = fetch_all(customers_src, orders_src, inventory_src)
         store.record_sources(sources)
-
-        stale = check_freshness({k: b.as_of for k, b in batches.items()}, now or utcnow(), s.max_age_hours)
-        if stale:
-            raise RefreshRejected(f"stale source data: {', '.join(stale)} (limit {s.max_age_hours}h)")
-        if not batches["salesforce"].rows:
-            raise RefreshRejected("salesforce returned no customers")
-        if not batches["snowflake"].rows:
-            raise RefreshRejected("snowflake returned no inventory")
-
-        result = compute(batches["salesforce"].rows, batches["databricks"].rows, batches["snowflake"].rows)
-        n = result.summary["open_lines"]
-        ratio = result.summary["data_issue_lines"] / n if n else 0.0
-        if ratio > s.max_data_issue_ratio:
-            raise RefreshRejected(f"{result.summary['data_issue_lines']} of {n} lines have data issues "
-                                  f"({ratio:.0%} > {s.max_data_issue_ratio:.0%})")
+        result = evaluate(batches, s, now)
         store.publish(result, s.retention_runs, fail_after_rows=_fail_after_rows)
         return RefreshOutcome(run_id, "succeeded", None, result, sources)
     except (SourceError, RefreshRejected, ValueError, RuntimeError) as e:
