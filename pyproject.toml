@@ -8,6 +8,7 @@ dependencies = ["psycopg[binary]>=3.1", "httpx>=0.27"]
 [project.optional-dependencies]
 dev = ["pytest>=8"]
 azure = ["azure-identity>=1.17", "azure-keyvault-secrets>=4.8", "azure-monitor-opentelemetry>=1.6"]
+signals = ["azure-identity>=1.17", "azure-eventhub>=5.11"]
 
 [project.scripts]
 fulfillment-risk = "fulfillment_risk.cli:main"
@@ -20,7 +21,7 @@ build-backend = "setuptools.build_meta"
 include = ["fulfillment_risk*"]
 
 [tool.setuptools.package-data]
-fulfillment_risk = ["store/schema.sql"]
+fulfillment_risk = ["store/schema.sql", "signals/signals.sql"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

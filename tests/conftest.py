@@ -34,13 +34,14 @@ def pg():
     from fulfillment_risk.store import apply_schema
     owner = _dsn(ADMIN.split("://", 1)[1].split("@", 1)[0], db)
     apply_schema(owner)
-    for login, group in (("fr_refresh", "fr_writer"), ("fr_agent", "fr_reader")):
+    for login, group in (("fr_refresh", "fr_writer"), ("fr_agent", "fr_reader"), ("fr_func", "fr_signal_writer")):
         admin.execute(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='{login}') "
                       f"THEN CREATE ROLE {login} LOGIN; END IF; END $$")
         admin.execute(f"ALTER ROLE {login} PASSWORD '{TEST_PW}'")
         admin.execute(f"GRANT {group} TO {login}")
-    admin.execute(f'GRANT CONNECT ON DATABASE "{db}" TO fr_refresh, fr_agent')
-    yield {"owner": owner, "writer": _dsn(f"fr_refresh:{TEST_PW}", db), "reader": _dsn(f"fr_agent:{TEST_PW}", db)}
+    admin.execute(f'GRANT CONNECT ON DATABASE "{db}" TO fr_refresh, fr_agent, fr_func')
+    yield {"owner": owner, "writer": _dsn(f"fr_refresh:{TEST_PW}", db), "reader": _dsn(f"fr_agent:{TEST_PW}", db),
+           "signals": _dsn(f"fr_func:{TEST_PW}", db)}
     admin.execute(f'DROP DATABASE "{db}" WITH (FORCE)')
     admin.close()
 
@@ -51,5 +52,5 @@ def db(pg):
     import psycopg
     with psycopg.connect(pg["owner"], autocommit=True) as c:
         c.execute("TRUNCATE fr.published_snapshot, fr.customer_risk, fr.order_line_risk, fr.sku_risk, "
-                  "fr.refresh_run RESTART IDENTITY CASCADE")
+                  "fr.refresh_run, fr.signal_event, fr.signal_rejected, fr.signal_entity_state RESTART IDENTITY CASCADE")
     return pg

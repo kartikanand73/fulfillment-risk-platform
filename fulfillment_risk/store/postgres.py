@@ -22,6 +22,7 @@ from ..engine import RiskResult
 
 LOCK_KEY = 0x4652_534B   # 'FRSK'
 SCHEMA_SQL = Path(__file__).with_name("schema.sql")
+SIGNALS_SQL = Path(__file__).parent.parent / "signals" / "signals.sql"
 
 
 class RefreshInProgress(Exception):
@@ -53,9 +54,10 @@ def connect(dsn: str, **kw) -> psycopg.Connection:
 
 
 def apply_schema(dsn: str) -> None:
-    """Create/upgrade the fr schema (needs a role that can create roles/schemas - run by an admin)."""
+    """Create/upgrade the fr schema + signal tables (needs a role that can create roles/schemas - run by an admin)."""
     with connect(dsn, autocommit=True) as c:
         c.execute(SCHEMA_SQL.read_text())
+        c.execute(SIGNALS_SQL.read_text())
 
 
 class SnapshotStore:
