@@ -1,4 +1,4 @@
 exceptions
 | where timestamp > ago(30m) and cloud_RoleName == 'func-fr-signals-ka2026'
-| summarize n = count(), latest = max(timestamp) by msg = substring(innermostMessage, 0, 700)
-| order by latest desc
+| summarize n = count(), lastSeen = max(timestamp) by msg = substring(innermostMessage, 0, 700)
+| order by lastSeen desc
