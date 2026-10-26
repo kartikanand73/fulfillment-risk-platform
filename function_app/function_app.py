@@ -4,10 +4,9 @@
   * no connection strings, keys or passwords anywhere
 At-least-once delivery + retries are safe because event_id is the idempotency key (see signals/processor.py).
 """
-from __future__ import annotations
-
 import logging
 import os
+import typing
 from datetime import datetime, timezone
 
 import azure.functions as func
@@ -63,5 +62,5 @@ def handle(events, connect=_connect, now: datetime | None = None):
                                consumer_group="%EVENTHUB_CONSUMER_GROUP%", cardinality="many")
 @app.retry(strategy="exponential_backoff", max_retry_count="5", minimum_interval="00:00:02",
            maximum_interval="00:00:30")
-def process_signals(events: list[func.EventHubEvent]) -> None:
+def process_signals(events: typing.List[func.EventHubEvent]) -> None:   # real type: the worker inspects it
     handle(events)

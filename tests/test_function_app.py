@@ -65,3 +65,13 @@ def test_deployment_zip_is_readable_on_linux(tmp_path):
     assert {"function_app.py", "host.json", "requirements.txt", "fulfillment_risk/__init__.py",
             "fulfillment_risk/signals/processor.py"} <= names
     assert all((i.external_attr >> 16) & 0o444 == 0o444 for i in infos)       # world-readable
+
+
+def test_trigger_annotation_is_a_real_type():
+    """The Python worker rejects string annotations ('from __future__ import annotations') on bindings."""
+    import inspect
+    src = (Path(__file__).resolve().parents[1] / "function_app" / "function_app.py").read_text()
+    assert "from __future__ import annotations" not in src
+    fn = function_app.app.get_functions()[0].get_user_function()
+    ann = inspect.signature(fn).parameters["events"].annotation
+    assert not isinstance(ann, str) and ann.__args__[0] is func.EventHubEvent
