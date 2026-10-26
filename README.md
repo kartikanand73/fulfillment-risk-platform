@@ -25,7 +25,7 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
 | 3 | PostgreSQL run and snapshot tables, safe publish, roles, current views | ✅ done |
 | 4 | Tests and failure handling (real PostgreSQL) | ✅ all passing |
 | 5 | Real connectors: Salesforce SOQL, Databricks SQL (not Genie), Snowflake SQL API | ✅ verified live (dry run) |
-| 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | not started |
+| 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | 🚧 provisioning |
 | 7 | `fulfillment-risk` skill on the Foundry hosted agent (Entra role `SkillAgent.FulfillmentRisk`) | not started |
 
 This project has no Azure compute or database yet. Phase 5 reuses the existing Key Vault, Databricks warehouse and Snowflake account. Power BI is out of scope.
@@ -95,6 +95,24 @@ The total short value is $21,655.00 across 3 SKUs.
 5. **Compute.** `engine.compute` allocates stock and classifies lines, orders and customers.
 6. **Publish.** One transaction writes the results and moves `fr.published_snapshot` to this run. An error rolls everything back and marks the run `failed`, and **the previous snapshot stays published**.
 7. **Retain.** It keeps the newest `FR_RETENTION_RUNS` runs (50 by default) and never deletes the published one.
+
+## Azure (Phase 6)
+
+Everything lives in subscription `fe74279e-…`, resource group **DB**, region **eastus**. It's created by `deploy/azure/provision.py`, and every step is safe to rerun.
+
+| Resource | Name | Notes |
+|---|---|---|
+| Managed identity | `id-fr-refresh-ka2026` | The job runs as this. No passwords or keys anywhere. |
+| Container image | `skillagentacrka2026.azurecr.io/fulfillment-risk:<tag>` | Python 3.12 slim, non-root, no model SDKs. The identity has AcrPull. |
+| Key Vault access | `kv-skillagent-ka2026` | Secrets User on **two secrets only**: `salesforce-client-secret` and `snowflake-fr-pat`. |
+| PostgreSQL | `psql-fr-ka2026`, database `fr` | Flexible Server, Burstable B1ms, 32 GB, PG 16. Entra sign-in only (password auth disabled); you are the Entra admin. The job identity is a PostgreSQL principal with `fr_writer`. |
+| Databricks | service principal = the identity | Databricks SQL access, CAN_USE on the warehouse, SELECT on `v_open_order_lines` only. |
+| Container Apps environment | `cae-fr-ka2026` | Consumption plan; logs go to `log-skillagent-ka2026`. |
+| Container Apps Job | `job-fr-refresh` | Cron `7 * * * *` (hourly at :07 UTC), 0.25 vCPU / 0.5 GiB, 15-minute timeout, no retries (the next hour is the retry). Traced to `appi-skillagent-ka2026` as span `fulfillment_risk.refresh`. |
+
+**Cost:** about $12 a month for the B1ms server plus roughly $4 for 32 GB of storage (check current pricing). The job costs a few cents a month, because it runs for seconds each hour on the consumption plan.
+
+**Network:** the PostgreSQL firewall allows Azure services, because consumption-plan jobs have no fixed outbound IP, and also your workstation for admin. Sign-in is Entra-only. A private VNet is the hardening step if this goes beyond a demo.
 
 ## What readers see (the `fr_reader` role, views only)
 

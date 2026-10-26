@@ -119,7 +119,7 @@ def s2_image(mi, tag, skip_build):
 
 def _role(principal, role, scope):
     have = az("role", "assignment", "list", "--assignee", principal, "--scope", scope, "--role", role,
-              "--query", "length(@)")
+              "--query", "[].id")      # no ( ) ; | & in args: az.cmd on Windows re-parses them
     if not have:
         for i in range(6):   # a new identity can take a minute to replicate
             r = subprocess.run([AZ, "role", "assignment", "create", "--assignee-object-id", principal,
