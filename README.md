@@ -30,6 +30,19 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
 
 This project has no Azure compute or database yet. Phase 5 reuses the existing Key Vault, Databricks warehouse and Snowflake account. Power BI is out of scope.
 
+## Operational signals (Event Hubs, near real time)
+
+Events from Event Hubs reach the dashboard within seconds as **context**. They never change the fulfillment-risk numbers. See [docs/signals.md](docs/signals.md) for the contract, duplicate, invalid and out-of-order handling, alerts, provisioning and teardown, and the live acceptance test.
+
+| Resource (RG DB, eastus) | Notes |
+|---|---|
+| `evhns-fr-ka2026` / hub `fr-signals` / consumer group `fr-signals-processor` | Standard, 1 TU, 2 partitions, 24 h retention, **local auth disabled** |
+| `func-fr-signals-ka2026` on `plan-fr-signals-ka2026` (Flex Consumption) | Python 3.11; Event Hubs trigger with a managed-identity connection |
+| `id-fr-signals-ka2026` | Data Receiver on the hub, storage data roles, PostgreSQL `fr_signal_writer` |
+| `stfrsigka2026` | Functions host and checkpoints; shared key off |
+| Alerts `fr-signals-*` | Portal only |
+| You | **Data Sender** on the hub, for the synthetic publisher |
+
 ## Live sources (Phase 5)
 
 | System | What the refresh reads | Identity | Setup |
