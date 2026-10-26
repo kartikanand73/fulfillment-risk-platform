@@ -114,7 +114,10 @@ Everything lives in subscription `fe74279e-…`, resource group **DB**, region *
 
 **Verified 2026-10-26:**
 - Execution `job-fr-refresh-76bn9jx` succeeded and published run 1: 41 lines, 2 customers at risk, $40,253.40 short. That matches the Phase 5 dry run exactly.
+- The hourly schedule then ran by itself at 20:07 UTC (run 2), and a manual run on image v2 followed (run 3). All 3 runs succeeded and run 3 is published.
 - Every outbound call appears in Application Insights: Key Vault, Salesforce, Databricks and Snowflake, each authenticated through the managed identity.
+- Each run's JSON report is in Log Analytics (`ContainerAppConsoleLogs_CL`). Check with `python deploy/azure/run_history.py`.
+- **Known issue:** the top-level span `fulfillment_risk.refresh` (with status, run id and at-risk count) reached App Insights for only 1 of 3 job runs, even with an explicit flush and shutdown at exit. Run outcomes are still fully recorded in `fr.refresh_run` and in Log Analytics.
 
 **Read the live snapshot as yourself:**
 
