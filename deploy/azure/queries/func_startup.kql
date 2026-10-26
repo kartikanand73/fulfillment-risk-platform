@@ -1,0 +1,5 @@
+union traces, exceptions
+| where timestamp > ago(30m) and cloud_RoleName == 'func-fr-signals-ka2026'
+| where severityLevel >= 2 or itemType == 'exception' or message has_any ('Worker', 'indexed', 'function', 'Host started', 'error')
+| project timestamp, itemType, severityLevel, msg = substring(coalesce(message, outerMessage, problemId), 0, 300)
+| order by timestamp desc | take 30
