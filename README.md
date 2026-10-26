@@ -25,7 +25,7 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
 | 3 | PostgreSQL run and snapshot tables, safe publish, roles, current views | ✅ done |
 | 4 | Tests and failure handling (real PostgreSQL) | ✅ all passing |
 | 5 | Real connectors: Salesforce SOQL, Databricks SQL (not Genie), Snowflake SQL API | ✅ verified live (dry run) |
-| 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | 🚧 provisioning |
+| 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | ✅ live: hourly at :07 UTC; first run published 2026-10-26 19:57 UTC |
 | 7 | `fulfillment-risk` skill on the Foundry hosted agent (Entra role `SkillAgent.FulfillmentRisk`) | not started |
 
 This project has no Azure compute or database yet. Phase 5 reuses the existing Key Vault, Databricks warehouse and Snowflake account. Power BI is out of scope.
@@ -111,6 +111,19 @@ Everything lives in subscription `fe74279e-…`, resource group **DB**, region *
 | Container Apps Job | `job-fr-refresh` | Cron `7 * * * *` (hourly at :07 UTC), 0.25 vCPU / 0.5 GiB, 15-minute timeout, no retries (the next hour is the retry). Traced to `appi-skillagent-ka2026` as span `fulfillment_risk.refresh`. |
 
 **Cost:** about $12 a month for the B1ms server plus roughly $4 for 32 GB of storage (check current pricing). The job costs a few cents a month, because it runs for seconds each hour on the consumption plan.
+
+**Verified 2026-10-26:**
+- Execution `job-fr-refresh-76bn9jx` succeeded and published run 1: 41 lines, 2 customers at risk, $40,253.40 short. That matches the Phase 5 dry run exactly.
+- Every outbound call appears in Application Insights: Key Vault, Salesforce, Databricks and Snowflake, each authenticated through the managed identity.
+
+**Read the live snapshot as yourself:**
+
+```bash
+FR_DATABASE_ENTRA=true FR_DATABASE_URL="host=psql-fr-ka2026.postgres.database.azure.com dbname=fr user=<your Entra UPN>" \
+  python -m fulfillment_risk status          # also: show --at-risk | lines --order SO-101996
+python deploy/azure/check_traces.py 60       # recent refresh spans
+az containerapp job execution list -g DB -n job-fr-refresh -o table
+```
 
 **Network:** the PostgreSQL firewall allows Azure services, because consumption-plan jobs have no fixed outbound IP, and also your workstation for admin. Sign-in is Entra-only. A private VNet is the hardening step if this goes beyond a demo.
 
