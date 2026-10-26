@@ -40,7 +40,11 @@ def refresh_span(**attrs):
 
 
 def flush():
+    """Export everything before a short-lived job exits: force_flush, then shutdown (which also drains the
+    exporter's retry queue). Without this the final batch - including the root span - can be lost."""
     if _tracer is not None:
         with contextlib.suppress(Exception):
             from opentelemetry import trace
-            trace.get_tracer_provider().force_flush(10_000)
+            p = trace.get_tracer_provider()
+            p.force_flush(30_000)
+            p.shutdown()
