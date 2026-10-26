@@ -23,12 +23,36 @@ Salesforce (customers)   Databricks (open orders)   Snowflake (inventory)
 | 1 | Data contract, read-only source interfaces, synthetic adapters | ✅ done |
 | 2 | Deterministic allocation and classification | ✅ done |
 | 3 | PostgreSQL run and snapshot tables, safe publish, roles, current views | ✅ done |
-| 4 | Tests and failure handling (46 tests, real PostgreSQL) | ✅ all passing |
-| 5 | Real connectors: Salesforce SOQL, Databricks SQL (not Genie), Snowflake SQL API | not started |
+| 4 | Tests and failure handling (real PostgreSQL) | ✅ all passing |
+| 5 | Real connectors: Salesforce SOQL, Databricks SQL (not Genie), Snowflake SQL API | ✅ verified live (dry run) |
 | 6 | Scheduled Container Apps Job and Azure PostgreSQL Flexible Server | not started |
 | 7 | `fulfillment-risk` skill on the Foundry hosted agent (Entra role `SkillAgent.FulfillmentRisk`) | not started |
 
-No Azure resources exist for this project yet. Power BI is out of scope.
+This project has no Azure compute or database yet. Phase 5 reuses the existing Key Vault, Databricks warehouse and Snowflake account. Power BI is out of scope.
+
+## Live sources (Phase 5)
+
+| System | What the refresh reads | Identity | Setup |
+|---|---|---|---|
+| Salesforce | `SELECT Id, Name, NumberOfEmployees, Owner.Name FROM Account` (REST query API, GET only) | existing connected app (client credentials); secret in Key Vault `salesforce-client-secret` | none |
+| Databricks | `skillagent.sales.v_open_order_lines` (orders with status Processing, joined to lines) through **Databricks SQL** on warehouse `skillagent-genie-wh` | Entra token (`az login` locally; the job's managed identity in Phase 6) | `deploy/databricks/open_orders_view.py` |
+| Snowflake | `SUPPLY_CHAIN_DEMO.INVENTORY.INVENTORY_POSITION` through the SQL API | service user `FR_REFRESH_SVC` with role `FR_READER` (SELECT on that table only); PAT in Key Vault `snowflake-fr-pat`, 90 days | `deploy/snowflake/inventory_setup.py` |
+
+Every statement passes through `require_select` (a single SELECT or WITH only), and every adapter exposes `fetch_*` methods only.
+
+```bash
+python deploy/local_env.py ../skill-agent/.env        # non-secret settings only
+python -m fulfillment_risk check-sources --live       # row counts + freshness per source
+python -m fulfillment_risk refresh --live --dry-run   # full gates + calculation, no database
+```
+
+**Live result, 2026-10-26 (dry run):** 14 open orders and 41 lines across 3 customers. 2 customers are at risk, with $40,253.40 short across 3 SKUs.
+
+| Customer | Status | Short | Why |
+|---|---|---|---|
+| Globex Inc | UNFULFILLABLE | $20,253.40 | SO-101996: 23 Rugged Tablets (P-1003) with every unit reserved; 4 of 20 Protective Cases (P-4005) because Acme and Initech ordered earlier |
+| Initech | PARTIAL | $20,000.00 | SO-101991: 22 of 38 Industrial Sensor Kits (P-1001); Acme's earlier order took 18 of 40 |
+| Acme Corp | FULFILLABLE | $0 | |
 
 ## Quick start (local)
 
