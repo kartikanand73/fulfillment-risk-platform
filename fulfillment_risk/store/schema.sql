@@ -111,6 +111,18 @@ CREATE OR REPLACE VIEW fr.v_sku_risk_current AS
 SELECT k.product_sku, k.available, k.demanded, k.allocated, k.short_units, s.run_id, s.snapshot_at, s.snowflake_as_of
 FROM fr.sku_risk k JOIN fr.v_snapshot_status s ON k.run_id = s.run_id;
 
+CREATE OR REPLACE VIEW fr.v_refresh_history AS
+SELECT run_id, status, trigger, code_version, started_at, finished_at,
+       extract(epoch FROM finished_at - started_at)::numeric(10,1) AS duration_s,
+       (summary ->> 'customers_at_risk')::int         AS customers_at_risk,
+       (summary ->> 'short_value')::numeric(14,2)     AS short_value,
+       (sources -> 'salesforce' ->> 'rows')::int      AS salesforce_rows,
+       (sources -> 'databricks' ->> 'rows')::int      AS databricks_rows,
+       (sources -> 'snowflake'  ->> 'rows')::int      AS snowflake_rows,
+       left(error, 300)                               AS error,
+       run_id = (SELECT run_id FROM fr.published_snapshot) AS is_published
+FROM fr.refresh_run;
+
 -- ---------- privileges ----------
 REVOKE ALL ON SCHEMA fr FROM PUBLIC;
 REVOKE ALL ON ALL TABLES IN SCHEMA fr FROM PUBLIC;
@@ -118,4 +130,4 @@ GRANT USAGE ON SCHEMA fr TO fr_writer, fr_reader;
 GRANT SELECT, INSERT, UPDATE, DELETE ON fr.refresh_run, fr.customer_risk, fr.order_line_risk, fr.sku_risk,
       fr.published_snapshot TO fr_writer;
 GRANT SELECT ON fr.v_snapshot_status, fr.v_fulfillment_risk_current, fr.v_fulfillment_risk_lines_current,
-      fr.v_sku_risk_current TO fr_reader, fr_writer;
+      fr.v_sku_risk_current, fr.v_refresh_history TO fr_reader, fr_writer;

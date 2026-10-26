@@ -194,6 +194,25 @@ def s5_schema(mi, admin_name):
                                      (UAMI,)).fetchall())
 
 
+# read-only consumers of the snapshot (Phase 7): Entra principals in PostgreSQL with fr_reader
+READERS = {"skillagent-chat-ka2026": "4db65470-6741-4b59-82ca-4a18868ad14f",   # web app managed identity
+           "skill-agent": "450a6723-dd2b-47a6-b1a5-e5f4227282d8"}              # Foundry hosted agent identity
+
+
+def s10_readers(admin_name):
+    step("10 read-only principals (fr_reader): web app + hosted agent")
+    tok = az("account", "get-access-token", "--resource-type", "oss-rdbms", "--query", "accessToken")
+    with pg_connect("postgres", admin_name, tok) as c:
+        for name, oid in READERS.items():
+            if not c.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (name,)).fetchone():
+                c.execute("SELECT * FROM pgaadauth_create_principal_with_oid(%s, %s, 'service', false, false)",
+                          (name, oid))
+    with pg_connect(DB, admin_name, tok) as c:
+        for name in READERS:
+            c.execute(f'GRANT fr_reader TO "{name}"')
+            print(f"   {name}: fr_reader")
+
+
 def s6_databricks(mi):
     step("6 Databricks: job identity as a read-only service principal")
     import httpx
@@ -337,6 +356,11 @@ def main():
         s8_job(mi, env_id, a.tag)
     if 9 in only:
         print("   result:", s9_run())
+    if 10 in only:
+        if admin is None:
+            me = az("ad", "signed-in-user", "show", "--query", "{upn:userPrincipalName, mail:mail}")
+            admin = me["mail"] or me["upn"]
+        s10_readers(admin)
     step("PROVISION_DONE")
 
 

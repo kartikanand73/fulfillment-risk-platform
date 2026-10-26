@@ -142,7 +142,7 @@ def test_reader_can_only_select_views(db):
     refresh(db["writer"])
     with psycopg.connect(db["reader"]) as c:
         for v in ("v_snapshot_status", "v_fulfillment_risk_current", "v_fulfillment_risk_lines_current",
-                  "v_sku_risk_current"):
+                  "v_sku_risk_current", "v_refresh_history"):
             c.execute(f"SELECT count(*) FROM fr.{v}").fetchone()
     for stmt in ("SELECT * FROM fr.customer_risk", "SELECT * FROM fr.refresh_run",
                  "DELETE FROM fr.published_snapshot", "UPDATE fr.customer_risk SET short_value=0",
@@ -171,3 +171,12 @@ def test_cli_exit_codes(db, monkeypatch):
         assert main(["refresh"]) == 0
     monkeypatch.setenv("FR_MAX_SOURCE_AGE_HOURS", "-1")                  # every source "stale" -> failed, exit 1
     assert main(["refresh"]) == 1
+
+
+def test_refresh_history_view(db):
+    refresh(db["writer"])
+    refresh(db["writer"], Scenario(fail={"snowflake"}))
+    with psycopg.connect(db["reader"]) as c:
+        rows = c.execute("SELECT run_id, status, is_published, customers_at_risk, error FROM fr.v_refresh_history "
+                         "ORDER BY run_id").fetchall()
+    assert rows[0][:4] == (1, "succeeded", True, 2) and rows[1][1] == "failed" and "snowflake" in rows[1][4]
