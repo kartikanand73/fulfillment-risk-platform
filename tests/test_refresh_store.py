@@ -160,3 +160,14 @@ def test_values_are_exact_decimals(db):
     refresh(db["writer"])
     r = [x for x in read_customers(db["reader"]) if x["customer_id"] == INITECH][0]
     assert r["short_value"] == Decimal("17000.00") and isinstance(r["short_value"], Decimal)
+
+
+def test_cli_exit_codes(db, monkeypatch):
+    from fulfillment_risk.cli import main
+    monkeypatch.setenv("FR_DATABASE_URL", db["writer"])
+    assert main(["refresh"]) == 0
+    with psycopg.connect(db["writer"], autocommit=True) as holder:      # overlapping run -> skipped, exit 0
+        holder.execute("SELECT pg_advisory_lock(%s)", (LOCK_KEY,))
+        assert main(["refresh"]) == 0
+    monkeypatch.setenv("FR_MAX_SOURCE_AGE_HOURS", "-1")                  # every source "stale" -> failed, exit 1
+    assert main(["refresh"]) == 1

@@ -92,7 +92,8 @@ def main(argv=None) -> int:
             report["customers"] = [asdict(c) for c in out.result.customers]
             report["lines_at_risk"] = [asdict(l) for l in out.result.lines if l.status.value != "FULFILLABLE"]
         print(json.dumps(report, indent=1, default=str))
-        return 0 if out.status == "succeeded" else 1
+        # skipped = another refresh holds the lock (e.g. a manual run overlapping the schedule): not a failure
+        return 0 if out.status in ("succeeded", "skipped") else 1
     elif a.cmd == "check-sources":
         rc = 0
         for src, fn in zip(_sources(a.live), ("fetch_customers", "fetch_open_order_lines", "fetch_inventory")):
