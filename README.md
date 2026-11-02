@@ -1,5 +1,7 @@
 # Fulfillment Risk Platform
 
+> **Parked on 2026-11-02 to save Azure credit.** PostgreSQL, Event Hubs and Databricks were deleted; the refresh job and the Function are paused. To bring it back, follow [ops/RECREATE.md in foundry-skill-agent-platform](https://github.com/kartikanand73/foundry-skill-agent-platform/blob/main/ops/RECREATE.md) (about 45–60 minutes).
+
 > **Which customers in Salesforce have open orders in Databricks that cannot be fulfilled using the current inventory in Snowflake?**
 
 This project answers that question with a deterministic refresh. It keeps only the answer, as a trusted snapshot in PostgreSQL, for an agent to explain in conversation.
